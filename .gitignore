@@ -1,0 +1,20 @@
+# ===== 构建产物与二进制（不纳入版本库） =====
+# 构建产出的 deb 包（Release 资产单独上传，不进 git）
+*.deb
+# 官方源包（需用户自行准备，体积大且不入库）
+*.exe
+*.dmg
+# Electron 运行时压缩包（脚本自动下载）
+*.zip
+# 拆包中间目录
+extracted-win/
+extracted/
+# 打包目录内的二进制产物（opt/ 为完整 Electron 运行时 + app.asar.unpacked）
+deb-pkg/opt/
+deb-pkg/usr/
+deb-pkg/DEBIAN/md5sums
+# Electron 运行时与原生模块编译缓存
+.electron-*/
+.native-build-*/
+# 项目数据目录（工作记忆/缓存，不入库）
+.codebuddy/
