@@ -61,7 +61,10 @@ jobs:
       - name: 获取 Windows 安装包
         run: |
           test -n "${{ secrets.WIN_EXE_URL }}" || { echo "缺少仓库 Secret: WIN_EXE_URL"; exit 1; }
-          curl -fL "${{ secrets.WIN_EXE_URL }}" -o "WorkBuddy-win32-x64-user.exe"
+          # 保留原始文件名（含版本号），build.sh 据此自动提取应用版本
+          URL="${{ secrets.WIN_EXE_URL }}"
+          FNAME="$(basename "${URL%%\?*}")"
+          curl -fL "$URL" -o "$FNAME"
 
       - name: 构建 (${{ matrix.arch }})
         env:
