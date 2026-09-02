@@ -328,6 +328,7 @@ LAUNCHER
     # --- 3. 桌面入口 ---
     local DESKTOP_DIR="${PKG_DIR}/usr/share/applications"
     mkdir -p "$DESKTOP_DIR"
+    rm -f "${DESKTOP_DIR}/workbuddy.desktop"   # 清理旧包名残留，避免桌面出现双入口
     cat > "${DESKTOP_DIR}/com.xydw.workbuddy.desktop" <<'DESKTOP'
 [Desktop Entry]
 Type=Application
@@ -345,6 +346,7 @@ DESKTOP
     # 保留 Icon 解析：desktop 的 Icon=com.xydw.workbuddy 由 hicolor 目录提供
 
     # --- 4. 生成多尺寸图标 ---
+    find "$ICON_DIR" -type f -name 'workbuddy.png' -delete 2>/dev/null || true   # 清理旧包名图标残留
     if [[ -n "$ICON_SRC" && -f "$ICON_SRC" ]]; then
         step "生成图标（源: $ICON_SRC）..."
         if command -v convert >/dev/null 2>&1; then
