@@ -15,7 +15,8 @@
 - 启动参数 --title-bar-style=custom 自绘三键。
 
 ## 构建入口
-- build.sh --skip-extract --no-install 快速重建 deb。产物 workbuddy_<version>-<rev>_amd64.deb（根目录）。
+- build.sh 支持 --arch（x64/arm64/loong64，默认 x64，贯穿 Electron 下载 / better-sqlite3 编译 / deb 的 Architecture 字段）；--slim 默认开启剔除 Win/mac 冗余（--no-slim 关闭）。快速重建：build.sh --skip-extract --no-install。产物 com.xydw.workbuddy_<ver>-<rev>_<amd64|arm64|loong64>.deb（根目录）。
+- 多架构路线：deb 须按架构分开打三份；arm64 待用户提供对应环境（Electron 官方 arm64 可用，better-sqlite3 交叉编译）；loong64 暂缓（官方无 Electron 构建，需龙芯/UOS/Deepin 定制来源）。
 
 ## 环境网络限制（2026-09-01 实测）
 - 本机 github.com 主域(20.205.243.166:443)被墙超时；api.github.com(20.205.243.168)可达。

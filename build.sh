@@ -91,17 +91,31 @@ stage_extract() {
 
         local EXTRACT_DIR="${SCRIPT_DIR}/extracted"
         mkdir -p "$EXTRACT_DIR"
-        step "解压外层 NSIS 安装器 ..."
-        7z x -y -o"$EXTRACT_DIR" "$WIN_EXE" >/dev/null
-
-        local INNER7Z
-        INNER7Z="$(find "$EXTRACT_DIR" -name 'app-64.7z' | head -n 1)"
-        [[ -n "$INNER7Z" ]] || die "未找到内层 app-64.7z"
-
-        step "解压内层应用包 app-64.7z ..."
         local INNERDIR="${EXTRACT_DIR}/app-64"
-        rm -rf "$INNERDIR"
-        7z x -y -o"$INNERDIR" "$INNER7Z" >/dev/null
+        local SRC_MARK="${INNERDIR}/.workbuddy-source"
+        # 源标识：exe 文件名 + 大小。换包（版本号/大小变化）即视为新包，强制重新覆盖解包
+        local SRC_ID
+        SRC_ID="$(basename "$WIN_EXE") $(stat -c%s "$WIN_EXE" 2>/dev/null)"
+
+        if [[ -f "$SRC_MARK" && -f "${INNERDIR}/resources/app.asar" ]] \
+           && [[ "$(cat "$SRC_MARK" 2>/dev/null)" == "$SRC_ID" ]]; then
+            step "源包未变化，复用已解包内容: $WIN_EXE"
+        else
+            step "检测到新包/缓存失效，强制重新覆盖解包: $WIN_EXE"
+            rm -rf "$EXTRACT_DIR"
+            mkdir -p "$EXTRACT_DIR"
+            step "解压外层 NSIS 安装器 ..."
+            7z x -y -o"$EXTRACT_DIR" "$WIN_EXE" >/dev/null
+
+            local INNER7Z
+            INNER7Z="$(find "$EXTRACT_DIR" -name 'app-64.7z' | head -n 1)"
+            [[ -n "$INNER7Z" ]] || die "未找到内层 app-64.7z"
+
+            step "解压内层应用包 app-64.7z ..."
+            mkdir -p "$INNERDIR"
+            7z x -y -o"$INNERDIR" "$INNER7Z" >/dev/null
+            echo "$SRC_ID" > "$SRC_MARK"
+        fi
 
         TWROOT="$INNERDIR"
     fi
@@ -169,15 +183,16 @@ APP_UNPACKED=""
 stage_assemble() {
     log "阶段 3/5：组装 deb-pkg（组装 Electron 运行时 + WorkBuddy JS 资源层）"
 
-    # 确定 WorkBuddy 源（优先用当前已知的解压产物，否则用 TWROOT）
+    # 确定 WorkBuddy 源：优先 stage_extract 产物(TWROOT)，其次显式 EXTRACTED_DIR，
+    # 再其次 extracted/app-64；extracted-win/app-64 仅作最后兜底，避免误用旧缓存导致版本错乱
     if [[ -n "${TWROOT:-}" && -f "$TWROOT/resources/app.asar" ]]; then
         :  # stage_extract 已设置
-    elif [[ -f "${SCRIPT_DIR}/extracted-win/app-64/resources/app.asar" ]]; then
-        TWROOT="${SCRIPT_DIR}/extracted-win/app-64"
     elif [[ -n "${EXTRACTED_DIR:-}" && -f "$EXTRACTED_DIR/resources/app.asar" ]]; then
         TWROOT="$EXTRACTED_DIR"
-    else
-        TWROOT="$(ls -dt "${SCRIPT_DIR}"/extracted/app-64 2>/dev/null | head -n 1)"
+    elif [[ -f "${SCRIPT_DIR}/extracted/app-64/resources/app.asar" ]]; then
+        TWROOT="${SCRIPT_DIR}/extracted/app-64"
+    elif [[ -f "${SCRIPT_DIR}/extracted-win/app-64/resources/app.asar" ]]; then
+        TWROOT="${SCRIPT_DIR}/extracted-win/app-64"
     fi
     [[ -n "$TWROOT" && -f "$TWROOT/resources/app.asar" ]] || die "无法定位 WorkBuddy 源目录（需 resources/app.asar）"
     APP_ASAR="$TWROOT/resources/app.asar"
