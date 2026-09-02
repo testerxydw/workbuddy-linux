@@ -2,6 +2,8 @@
 
 > ⚠️ 非官方移植 · 仅供学习交流
 > Unofficial repack, for study/exchange only.
+> 仓库已公开，但仅供个人学习/研究使用，请勿用于商业用途或大规模再分发。
+> Public repo, but for personal study/research only — no commercial use or mass redistribution.
 
 ---
 
