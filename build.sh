@@ -418,6 +418,48 @@ stage_deb() {
     ) > "${PKG_DIR}/DEBIAN/md5sums"
     step "md5sums 已生成: $(wc -l < "${PKG_DIR}/DEBIAN/md5sums") 个文件"
 
+    # 维护者脚本：安装/升级/卸载后刷新图标与 desktop 缓存，
+    # 确保系统监视器/任务管理器、启动器能按 Name/Icon 正确显示图标。
+    cat > "${PKG_DIR}/DEBIAN/postinst" <<'SCRIPT'
+#!/bin/sh
+set -e
+case "$1" in
+    configure|abort-upgrade|abort-remove|abort-deconfigure)
+        if command -v update-icon-caches >/dev/null 2>&1; then
+            update-icon-caches /usr/share/icons/hicolor
+        fi
+        if command -v gtk-update-icon-cache >/dev/null 2>&1; then
+            gtk-update-icon-cache -q /usr/share/icons/hicolor || true
+        fi
+        if command -v update-desktop-database >/dev/null 2>&1; then
+            update-desktop-database /usr/share/applications >/dev/null 2>&1 || true
+        fi
+        ;;
+esac
+exit 0
+SCRIPT
+    chmod 755 "${PKG_DIR}/DEBIAN/postinst"
+
+    cat > "${PKG_DIR}/DEBIAN/prerm" <<'SCRIPT'
+#!/bin/sh
+set -e
+case "$1" in
+    remove|purge)
+        if command -v update-icon-caches >/dev/null 2>&1; then
+            update-icon-caches /usr/share/icons/hicolor
+        fi
+        if command -v gtk-update-icon-cache >/dev/null 2>&1; then
+            gtk-update-icon-cache -q /usr/share/icons/hicolor || true
+        fi
+        if command -v update-desktop-database >/dev/null 2>&1; then
+            update-desktop-database /usr/share/applications >/dev/null 2>&1 || true
+        fi
+        ;;
+esac
+exit 0
+SCRIPT
+    chmod 755 "${PKG_DIR}/DEBIAN/prerm"
+
     # 构造桌面入口目录（避免 Icon 解析不到时退化为问号，若未生成图标则写入兜底 desktop）
     DEB_FILE="${SCRIPT_DIR}/com.xydw.workbuddy_${new_version}_${DEB_ARCH}.deb"
     dpkg-deb --build --root-owner-group "${PKG_DIR}" "${DEB_FILE}"
