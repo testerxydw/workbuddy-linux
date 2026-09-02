@@ -42,8 +42,10 @@ jobs:
         include:
           - arch: x64
             runner: ubuntu-24.04
+            debarch: amd64
           - arch: arm64
             runner: ubuntu-24.04-arm
+            debarch: arm64
     runs-on: ${{ matrix.runner }}
     steps:
       - name: 检出代码
@@ -76,14 +78,14 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: deb-${{ matrix.arch }}
-          path: com.xydw.workbuddy_*_${{ matrix.arch }}.deb
+          path: com.xydw.workbuddy_*_${{ matrix.debarch }}.deb
           if-no-files-found: error
 
       - name: 发布到 Release
         if: ${{ github.event_name == 'release' }}
         uses: softprops/action-gh-release@v2
         with:
-          files: com.xydw.workbuddy_*_${{ matrix.arch }}.deb
+          files: com.xydw.workbuddy_*_${{ matrix.debarch }}.deb
 
   build-loong64:
     name: build-loong64
