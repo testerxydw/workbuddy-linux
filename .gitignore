@@ -16,5 +16,3 @@ deb-pkg/DEBIAN/md5sums
 # Electron 运行时与原生模块编译缓存
 .electron-*/
 .native-build-*/
-# 打包目录 control（脚本按版本生成，不入库）
-deb-pkg/DEBIAN/control

@@ -1,0 +1,17 @@
+Package: com.xydw.workbuddy
+Priority: optional
+Section: utils
+Installed-Size: 681428
+Maintainer: WorkBuddy-CN-Repack
+Architecture: amd64
+Version: 5.5.1-3
+Depends: libc6 (>= 2.28), libstdc++6 (>= 9), libasound2 (>= 1.0.2), libatk-bridge2.0-0 (>= 2.5.3), libatk1.0-0 (>= 2.2.0), libcups2 (>= 1.6.1), libdbus-1-3 (>= 1.9.14), libdrm2 (>= 2.4.60), libgbm1 (>= 17.0.0), libgtk-3-0 (>= 3.24.0), libnss3 (>= 2:3.26), libxkbcommon0 (>= 0.5.0), libxss1 (>= 1.0.0), libxtst6 (>= 1.0.0), xdg-utils (>= 1.0)
+Homepage: https://workbuddy.tencent.com
+Description: WorkBuddy CN - 腾讯云 AI 编程工作台 (Linux 重打包版)
+ WorkBuddy 是腾讯 CodeBuddy 的 AI 工作台产品，提供 AI Agent、智能编程辅助、
+ 工作台多模态创作能力。本包为官方 Windows 安装包的 Linux 重打包版本，
+ 仅供学习交流使用。
+ Description-zh_CN: WorkBuddy CN - 腾讯云 AI 编程工作台 (Linux 重打包版)
+ WorkBuddy 是腾讯 CodeBuddy 的 AI 工作台产品，提供 AI Agent、智能编程辅助、
+ 工作台多模态创作能力。本包为官方 Windows 安装包的 Linux 重打包版本，
+ 仅供学习交流使用。
