@@ -3,8 +3,8 @@
 #
 # 触发：push tag(v*)、GitHub Release 发布、手动 workflow_dispatch
 # 架构：x64 / arm64（GitHub 官方 runner，始终构建）
-#       loong64（独立 job，需自托管 runner + 定制 Electron，且仅在配置了
-#                ELECTRON_LOONG64_URL secret 时才会运行，否则自动跳过）
+#       loong64（默认跳过；手动触发时勾选 enable_loong64，且需自托管 runner
+#               标签 loong64 + 配置 ELECTRON_LOONG64_URL secret 才实际构建）
 #
 # 仓库 Secrets 配置（Settings → Secrets and variables → Actions）：
 #   WIN_EXE_URL           必需。Windows 安装包下载地址，文件名须含版本号，形如
@@ -12,15 +12,19 @@
 #                         build.sh 会自动按文件名提取应用版本。
 #   ELECTRON_LOONG64_URL  仅 loong64 需要。龙芯/UOS/Deepin 定制 Electron 的
 #                         electron-v39.2.7-linux-loong64.zip 下载地址。
-#                         未配置时 loong64 job 自动跳过，不影响 x64/arm64。
 #
-# loong64 运行环境：在「Settings → Runners」添加一台 loong64 机器（标签 loong64），
-# 或改用 QEMU 模拟（见文件末尾注释）。loong64 job 仅在 ELECTRON_LOONG64_URL 存在时运行。
+# 说明：job 级 if 不能使用 secrets / matrix 上下文，故 loong64 是否构建由
+#       workflow_dispatch 的 input(enable_loong64) 控制（push/release 触发时默认为 false）。
 # ============================================================================
 name: build-deb
 
 on:
   workflow_dispatch:
+    inputs:
+      enable_loong64:
+        description: '同时构建 loong64（需自托管 runner 标签 loong64 + 配置 ELECTRON_LOONG64_URL secret）'
+        type: boolean
+        default: false
   push:
     tags: ['v*']
   release:
@@ -83,8 +87,8 @@ jobs:
 
   build-loong64:
     name: build-loong64
-    # loong64 仅在配置了定制 Electron 来源时才运行（job 级 if 可用 secrets 上下文）
-    if: ${{ secrets.ELECTRON_LOONG64_URL != '' }}
+    # job 级 if 只能用 inputs / github 等上下文，不能用 secrets / matrix
+    if: ${{ inputs.enable_loong64 }}
     runs-on: [self-hosted, loong64]
     steps:
       - name: 检出代码
