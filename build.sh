@@ -173,7 +173,7 @@ stage_assemble() {
 
     # --- A. 复制 Electron 运行时（ELF 主二进制 + Chromium 资源 + 原生 .so）---
     step "复制 Electron 运行时 ..."
-    cp -f "$ELECTRON_BASE/electron" "$APP_DIR/workbuddy-bin"
+    cp -f "$ELECTRON_BASE/electron" "$APP_DIR/workbuddy"
     # 跨平台共用的 Chromium 资源文件
     for f in chrome_100_percent.pak chrome_200_percent.pak resources.pak \
              icudtl.dat snapshot_blob.bin v8_context_snapshot.bin \
@@ -295,13 +295,13 @@ stage_desktop() {
 
     # --- 1. 启动脚本 ---
     step "写入启动脚本 ..."
-    cat > "${APP_DIR}/workbuddy" <<'LAUNCHER'
+    cat > "${APP_DIR}/workbuddy.sh" <<'LAUNCHER'
 #!/bin/bash
 # WorkBuddy CN - Linux Launcher
 # Repackaged from official Windows installer with Electron Linux runtime.
 
 APP_DIR="$(cd "$(dirname "$(readlink -f "$0")")" && pwd)"
-ELECTRON="$APP_DIR/workbuddy-bin"
+ELECTRON="$APP_DIR/workbuddy"
 
 ulimit -n 65535 2>/dev/null || true
 
@@ -315,21 +315,25 @@ fi
 
 exec "$ELECTRON" ${EXTRA_ARGS} "$@"
 LAUNCHER
+    chmod 755 "${APP_DIR}/workbuddy.sh"
     chmod 755 "${APP_DIR}/workbuddy"
-    chmod 755 "${APP_DIR}/workbuddy-bin"
     chmod 755 "${APP_DIR}/chrome-sandbox" 2>/dev/null || true
 
-    # --- 2. 软链：/usr/bin/workbuddy → /opt/workbuddy/workbuddy（绝对路径最稳）---
+    # --- 2. 软链：/usr/bin/workbuddy → /opt/workbuddy/workbuddy.sh（绝对路径最稳）---
     local BIN_LINK="${PKG_DIR}/usr/bin/workbuddy"
     mkdir -p "$(dirname "$BIN_LINK")"
     rm -f "$BIN_LINK"
-    ln -s "/opt/workbuddy/workbuddy" "$BIN_LINK"
+    ln -s "/opt/workbuddy/workbuddy.sh" "$BIN_LINK"
 
     # --- 3. 桌面入口 ---
     local DESKTOP_DIR="${PKG_DIR}/usr/share/applications"
     mkdir -p "$DESKTOP_DIR"
-    rm -f "${DESKTOP_DIR}/workbuddy.desktop"   # 清理旧包名残留，避免桌面出现双入口
-    cat > "${DESKTOP_DIR}/com.xydw.workbuddy.desktop" <<'DESKTOP'
+    # 通用方案：桌面文件 basename 须与 Electron 二进制名（进程名）一致，
+    # 系统监视器按进程名 workbuddy 匹配到图标，无需隐藏条目。
+    rm -f "${DESKTOP_DIR}/com.xydw.workbuddy.desktop" \
+          "${DESKTOP_DIR}/workbuddy-bin.desktop" \
+          "${DESKTOP_DIR}/chrome_crashpad_handler.desktop"   # 清理旧包名/旧隐藏条目残留
+    cat > "${DESKTOP_DIR}/workbuddy.desktop" <<'DESKTOP'
 [Desktop Entry]
 Type=Application
 Name=WorkBuddy
@@ -342,6 +346,7 @@ Categories=Development;Utility;
 Keywords=code;editor;ai;ide;workbuddy;coding;
 
 DESKTOP
+
     # 软链 opt/workbuddy → usr/share/workbuddy 已不需要（/usr/bin/workbuddy 直接指向 /opt）
     # 保留 Icon 解析：desktop 的 Icon=com.xydw.workbuddy 由 hicolor 目录提供
 
@@ -499,7 +504,7 @@ echo ""
 echo "======================================================================"
 echo " 完成！"
 if [[ "${DO_DEB}" -eq 1 ]]; then
-    echo "   deb 版: $(basename "${DEB_FILE}")   (入口: WorkBuddy，运行 /opt/workbuddy/workbuddy)"
+    echo "   deb 版: $(basename "${DEB_FILE}")   (入口: WorkBuddy，运行 /usr/bin/workbuddy 或 /opt/workbuddy/workbuddy.sh)"
 fi
 if [[ "${DO_INSTALL}" -ne 1 ]]; then
     echo "   （--no-install：未安装，产物已生成）"
