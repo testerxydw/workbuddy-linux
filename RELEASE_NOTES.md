@@ -5,7 +5,7 @@
 ## 安装 / Install
 
 ```bash
-sudo dpkg -i com.xydw.workbuddy_5.4.7-5_amd64.deb
+sudo dpkg -i com.xydw.workbuddy_*.deb
 sudo apt-get install -f   # 补齐缺失的运行时依赖
 ```
 
@@ -24,8 +24,8 @@ sudo apt-get install -f   # 补齐缺失的运行时依赖
 
 ## 校验 / Checksum
 
-发布资产 `com.xydw.workbuddy_5.4.7-5_amd64.deb` 的 SHA256 可在下载后通过以下命令核对：
+发布资产 `com.xydw.workbuddy_*.deb` 的 SHA256 可在下载后通过以下命令核对：
 
 ```bash
-sha256sum com.xydw.workbuddy_5.4.7-5_amd64.deb
+sha256sum com.xydw.workbuddy_*.deb
 ```
