@@ -328,21 +328,21 @@ LAUNCHER
     # --- 3. 桌面入口 ---
     local DESKTOP_DIR="${PKG_DIR}/usr/share/applications"
     mkdir -p "$DESKTOP_DIR"
-    cat > "${DESKTOP_DIR}/workbuddy.desktop" <<'DESKTOP'
+    cat > "${DESKTOP_DIR}/com.xydw.workbuddy.desktop" <<'DESKTOP'
 [Desktop Entry]
 Type=Application
 Name=WorkBuddy
 GenericName=AI Coding Workbench
 Comment=Tencent CodeBuddy AI coding assistant
 Exec=workbuddy
-Icon=workbuddy
+Icon=com.xydw.workbuddy
 Terminal=false
 Categories=Development;Utility;
 Keywords=code;editor;ai;ide;workbuddy;coding;
 
 DESKTOP
     # 软链 opt/workbuddy → usr/share/workbuddy 已不需要（/usr/bin/workbuddy 直接指向 /opt）
-    # 保留 Icon 解析：desktop 的 Icon=workbuddy 由 hicolor 目录提供
+    # 保留 Icon 解析：desktop 的 Icon=com.xydw.workbuddy 由 hicolor 目录提供
 
     # --- 4. 生成多尺寸图标 ---
     if [[ -n "$ICON_SRC" && -f "$ICON_SRC" ]]; then
@@ -352,18 +352,18 @@ DESKTOP
             for size in 16 32 48 64 128 256 512; do
                 mkdir -p "${ICON_DIR}/${size}x${size}/apps"
                 convert "$ICON_SRC" -resize "${size}x${size}" \
-                    "${ICON_DIR}/${size}x${size}/apps/workbuddy.png"
+                    "${ICON_DIR}/${size}x${size}/apps/com.xydw.workbuddy.png"
             done
         else
             # 无 ImageMagick：复制原图到常用尺寸目录，多数桌面可按 Icon 名匹配到 hicolor 任意尺寸
             local size
             for size in 256 512; do
                 mkdir -p "${ICON_DIR}/${size}x${size}/apps"
-                cp -f "$ICON_SRC" "${ICON_DIR}/${size}x${size}/apps/workbuddy.png"
+                cp -f "$ICON_SRC" "${ICON_DIR}/${size}x${size}/apps/com.xydw.workbuddy.png"
             done
         fi
         mkdir -p "${ICON_DIR}/scalable/apps"
-        cp -f "$ICON_SRC" "${ICON_DIR}/scalable/apps/workbuddy.png"
+        cp -f "$ICON_SRC" "${ICON_DIR}/scalable/apps/com.xydw.workbuddy.png"
     else
         echo "  [提示] 未找到图标素材，跳过图标生成（桌面图标可能显示问号）"
     fi
@@ -417,7 +417,7 @@ stage_deb() {
     step "md5sums 已生成: $(wc -l < "${PKG_DIR}/DEBIAN/md5sums") 个文件"
 
     # 构造桌面入口目录（避免 Icon 解析不到时退化为问号，若未生成图标则写入兜底 desktop）
-    DEB_FILE="${SCRIPT_DIR}/workbuddy_${new_version}_${DEB_ARCH}.deb"
+    DEB_FILE="${SCRIPT_DIR}/com.xydw.workbuddy_${new_version}_${DEB_ARCH}.deb"
     dpkg-deb --build --root-owner-group "${PKG_DIR}" "${DEB_FILE}"
     step "产物: ${DEB_FILE} ($(du -h "${DEB_FILE}" | cut -f1))"
 }

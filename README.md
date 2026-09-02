@@ -36,10 +36,10 @@ and repackages it as a `deb` package for Deepin / UOS / Debian-based Linux.
 
 ## 快速安装 / Quick Install
 
-从 GitHub Release 下载对应版本的 `workbuddy_<version>_amd64.deb`，然后：
+从 GitHub Release 下载对应版本的 `com.xydw.workbuddy_<version>_amd64.deb`，然后：
 
 ```bash
-sudo dpkg -i workbuddy_*.deb
+sudo dpkg -i com.xydw.workbuddy_*.deb
 sudo apt-get install -f   # 若提示缺少运行时依赖，自动补齐
 ```
 
@@ -71,7 +71,7 @@ bash build.sh /path/to/WorkBuddy-win32-x64-user-*.exe
 5. 桌面集成（启动脚本 / 图标 / `.desktop`）
 6. 构建 deb（自增 `Version`、重算 `Installed-Size`、生成 `md5sums`）
 
-产物：`workbuddy_<version>_amd64.deb`
+产物：`com.xydw.workbuddy_<version>_amd64.deb`
 
 ### 常用参数 / Options
 
