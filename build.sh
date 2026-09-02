@@ -381,6 +381,23 @@ DESKTOP
 # ============================================================================
 DEB_FILE=""
 
+# 从 exe 文件名解析应用版本（X.Y.Z）。例：
+#   WorkBuddy-win32-x64-user-5.5.1.37570276-9af62480.exe -> 5.5.1
+# 参数可选；缺省时从仓库根目录选取最新 exe。
+app_version_from_exe() {
+    local exe="${1:-}"
+    if [[ -z "$exe" ]]; then
+        exe="$(ls -t "${SCRIPT_DIR}"/WorkBuddy-win32-x64-user-*.exe 2>/dev/null | head -n 1 || true)"
+    fi
+    [[ -n "$exe" && -f "$exe" ]] || return 1
+    local base; base="$(basename "$exe")"
+    if [[ "$base" =~ ([0-9]+\.[0-9]+\.[0-9]+) ]]; then
+        echo "${BASH_REMATCH[1]}"
+        return 0
+    fi
+    return 1
+}
+
 bump_version() {
     local current="$1" base rev
     if [[ "${current}" =~ ^([0-9]+(\.[0-9]+)+)-([0-9]+)$ ]]; then
@@ -398,10 +415,30 @@ stage_deb() {
     [[ -f "${CONTROL_FILE}" ]] || die "未找到 ${CONTROL_FILE}"
     [[ -d "${PKG_DIR}/opt" ]] || die "未找到 ${PKG_DIR}/opt"
 
-    local old_version new_version
+    local old_version new_version app_ver cur_app
     old_version="$(grep -E '^Version: ' "${CONTROL_FILE}" | head -n 1 | sed -E 's/^Version:[[:space:]]+//')"
     [[ -n "${old_version}" ]] || die "无法解析 ${CONTROL_FILE} 的 Version"
-    new_version="$(bump_version "${old_version}")"
+    # 版本号跟随 exe 应用版本：换包时主版本变化则 revision 归 1，同版本则 revision+1
+    app_ver="$(app_version_from_exe "$WIN_EXE")" || app_ver=""
+    if [[ -n "$app_ver" ]]; then
+        cur_app="${old_version%%-*}"
+        if [[ "$cur_app" == "$app_ver" ]]; then
+            local cur_rev="${old_version##*-}"
+            if [[ "$cur_rev" =~ ^[0-9]+$ ]]; then
+                new_version="${app_ver}-$((cur_rev + 1))"
+            else
+                new_version="${app_ver}-1"
+            fi
+        else
+            new_version="${app_ver}-1"
+        fi
+        # 用了 --skip-extract 却换了新包：deb-pkg 仍是旧内容，禁止以新版本号打包
+        if [[ "${DO_EXTRACT:-1}" -eq 0 && "$cur_app" != "$app_ver" ]]; then
+            die "检测到新 exe 版本 ${app_ver}，但当前为 --skip-extract（deb-pkg 仍是 ${cur_app}）。请去掉 --skip-extract 重新拆包后再构建。"
+        fi
+    else
+        new_version="$(bump_version "${old_version}")"
+    fi
     sed -i "s/^Version: .*/Version: ${new_version}/" "${CONTROL_FILE}"
     step "版本: ${old_version} -> ${new_version}"
 
