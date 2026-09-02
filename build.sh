@@ -2,7 +2,7 @@
 # ============================================================================
 # WorkBuddy CN 一键构建脚本（唯一入口）
 #
-# 流水线：拆包 Windows NSIS → 下载 Electron 37 Linux 运行时 → 组装 deb-pkg
+# 流水线：拆包 Windows NSIS → 下载 Electron Linux 运行时（按 --arch）→ 组装 deb-pkg
 #        → 精简冗余 → 桌面集成 → 构建 deb
 #
 # 用法：
@@ -10,7 +10,8 @@
 #   bash build.sh /path/WorkBuddy-win32-x64-user-*.exe   # 指定安装包
 #   bash build.sh --extracted <已解压 app-64 目录> # 复用已解压目录
 #   bash build.sh --skip-extract                   # 跳过拆包，复用现有 deb-pkg
-#   bash build.sh --slim                           # 精简冗余文件
+#   bash build.sh --slim                           # 精简冗余文件（默认已开启，--no-slim 关闭）
+#   bash build.sh --arch arm64                     # 指定目标架构（x64 / arm64 / loong64，默认 x64）
 #   bash build.sh --no-install                     # 全部构建但不安装
 #
 # 依赖：rsync/7z/dpkg-deb/python3/curl；Electron 运行时通过 curl 下载。
@@ -30,8 +31,9 @@ WIN_EXE=""
 EXTRACTED_DIR=""
 DO_EXTRACT=1
 DO_DEB=1
-DO_SLIM=0
+DO_SLIM=1                 # 默认开启：剔除 Windows/macOS 冗余文件，避免 deb 污染（--no-slim 可关闭）
 DO_INSTALL=1
+ARCH="x64"                # 目标架构：x64 / arm64 / loong64（由 --arch 覆盖）
 
 die() { echo "错误: $*" >&2; exit 1; }
 log() { echo ""; echo "==================================================================="; echo "==> $*"; echo "==================================================================="; }
@@ -48,12 +50,22 @@ while [[ $# -gt 0 ]]; do
         --extracted)   EXTRACTED_DIR="$2"; shift 2 ;;
         --skip-extract) DO_EXTRACT=0; shift ;;
         --slim)        DO_SLIM=1; shift ;;
+        --no-slim)     DO_SLIM=0; shift ;;
+        --arch)        ARCH="$2"; shift 2 ;;
         --no-install)  DO_INSTALL=0; shift ;;
         -h|--help)     usage ;;
         *.exe)         WIN_EXE="$1"; shift ;;
         *) echo "未知参数: $1" >&2; usage ;;
     esac
 done
+
+# ---------- 架构映射：ARCH → Electron 下载架构 + deb 的 Architecture 字段 ----------
+case "${ARCH}" in
+    x64)     ELECTRON_ARCH="x64";     DEB_ARCH="amd64" ;;
+    arm64)   ELECTRON_ARCH="arm64";   DEB_ARCH="arm64" ;;
+    loong64) ELECTRON_ARCH="loong64"; DEB_ARCH="loong64" ;;
+    *) die "不支持的架构: ${ARCH}（支持 x64 / arm64 / loong64）" ;;
+esac
 
 # ---------- 基础依赖检查 ----------
 for tool in rsync 7z dpkg-deb python3 sed grep md5sum chmod curl; do
@@ -107,24 +119,33 @@ stage_extract() {
 ELECTRON_VER="39.2.7"
 
 stage_fetch_electron() {
-    log "阶段 2/5：获取 Electron ${ELECTRON_VER} Linux x64 运行时"
+    local LOONG_URL="${ELECTRON_LOONG64_URL:-}"
+    if [[ "${ELECTRON_ARCH}" == "loong64" && -z "${LOONG_URL}" ]]; then
+        die "loong64 暂无官方 Electron 构建，请设置环境变量 ELECTRON_LOONG64_URL 指向定制 Electron（龙芯/UOS/Deepin）的 linux-loong64 zip 下载地址"
+    fi
+    log "阶段 2/5：获取 Electron ${ELECTRON_VER} Linux ${ELECTRON_ARCH} 运行时"
 
-    local ELECTRON_DIR="${SCRIPT_DIR}/.electron-${ELECTRON_VER}-linux-x64"
+    local ELECTRON_DIR="${SCRIPT_DIR}/.electron-${ELECTRON_VER}-linux-${ELECTRON_ARCH}"
     if [[ -x "${ELECTRON_DIR}/electron" ]]; then
         step "复用已有 Electron 运行时: ${ELECTRON_DIR}"
         ELECTRON_BASE="$ELECTRON_DIR"
         return 0
     fi
 
-    local ZIP_FILE="${SCRIPT_DIR}/electron-v${ELECTRON_VER}-linux-x64.zip"
-    local NPMMIRROR_URL="https://npmmirror.com/mirrors/electron/${ELECTRON_VER}/electron-v${ELECTRON_VER}-linux-x64.zip"
-    local GITHUB_URL="https://github.com/electron/electron/releases/download/v${ELECTRON_VER}/electron-v${ELECTRON_VER}-linux-x64.zip"
+    local ZIP_FILE="${SCRIPT_DIR}/electron-v${ELECTRON_VER}-linux-${ELECTRON_ARCH}.zip"
+    local NPMMIRROR_URL="https://npmmirror.com/mirrors/electron/${ELECTRON_VER}/electron-v${ELECTRON_VER}-linux-${ELECTRON_ARCH}.zip"
+    local GITHUB_URL="https://github.com/electron/electron/releases/download/v${ELECTRON_VER}/electron-v${ELECTRON_VER}-linux-${ELECTRON_ARCH}.zip"
 
     if [[ ! -f "$ZIP_FILE" || $(stat -c%s "$ZIP_FILE") -lt 100000000 ]]; then
-        step "下载 Electron 运行时（npmmirror 镜像，失败则回退 GitHub）..."
-        if ! curl -fL --retry 3 -o "$ZIP_FILE" "$NPMMIRROR_URL" >/dev/null 2>&1; then
-            echo "  npmmirror 下载失败，尝试 GitHub 官方..."
-            curl -fL --retry 3 -o "$ZIP_FILE" "$GITHUB_URL" >/dev/null 2>&1 || die "Electron 运行时下载失败（npmmirror 与 GitHub 均不可达）"
+        if [[ -n "${LOONG_URL}" ]]; then
+            step "下载 Electron 运行时（loong64 定制来源: ${LOONG_URL}）..."
+            curl -fL --retry 3 -o "$ZIP_FILE" "$LOONG_URL" >/dev/null 2>&1 || die "Electron 运行时下载失败: ${LOONG_URL}"
+        else
+            step "下载 Electron 运行时（npmmirror 镜像，失败则回退 GitHub）..."
+            if ! curl -fL --retry 3 -o "$ZIP_FILE" "$NPMMIRROR_URL" >/dev/null 2>&1; then
+                echo "  npmmirror 下载失败，尝试 GitHub 官方..."
+                curl -fL --retry 3 -o "$ZIP_FILE" "$GITHUB_URL" >/dev/null 2>&1 || die "Electron 运行时下载失败（npmmirror 与 GitHub 均不可达）"
+            fi
         fi
         [[ -s "$ZIP_FILE" ]] || die "下载产物为空: $ZIP_FILE"
         step "  已下载 $(du -h "$ZIP_FILE" | cut -f1)"
@@ -220,7 +241,7 @@ stage_native_modules() {
             npm_config_runtime=electron \
             npm_config_target="${ELECTRON_VER}" \
             npm_config_disturl=https://electronjs.org/headers \
-            npm_config_arch=x64 \
+            npm_config_arch=${ELECTRON_ARCH} \
             npm install better-sqlite3@12.8.0 --no-save 2>&1 | tail -30
         ) || die "better-sqlite3 安装/编译失败"
         [[ -f "$BS_SRC" ]] || die "better-sqlite3 编译后未找到 .node"
@@ -440,7 +461,8 @@ stage_deb() {
         new_version="$(bump_version "${old_version}")"
     fi
     sed -i "s/^Version: .*/Version: ${new_version}/" "${CONTROL_FILE}"
-    step "版本: ${old_version} -> ${new_version}"
+    sed -i "s/^Architecture: .*/Architecture: ${DEB_ARCH}/" "${CONTROL_FILE}"
+    step "版本: ${old_version} -> ${new_version}（Architecture: ${DEB_ARCH}）"
 
     # 重算 Installed-Size（KiB）
     local installed_size

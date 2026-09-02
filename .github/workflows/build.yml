@@ -1,0 +1,91 @@
+# ============================================================================
+# WorkBuddy CN 多架构 deb 自动构建
+#
+# 触发：push tag(v*)、GitHub Release 发布、手动 workflow_dispatch
+# 架构：x64 / arm64（GitHub 官方 runner）；loong64（需自托管 runner + 定制 Electron）
+#
+# 仓库 Secrets 配置（Settings → Secrets and variables → Actions）：
+#   WIN_EXE_URL           必需。Windows 安装包下载地址，形如
+#                         https://.../WorkBuddy-win32-x64-user-5.5.1.37570276-xxxx.exe
+#                         build.sh 会自动按 WorkBuddy-win32-x64-user-*.exe 识别。
+#   ELECTRON_LOONG64_URL  仅 loong64 需要。龙芯/UOS/Deepin 定制 Electron 的
+#                         electron-v39.2.7-linux-loong64.zip 下载地址。
+#                         未配置时 loong64 job 自动跳过，不影响 x64/arm64。
+#
+# loong64 运行环境：在「Settings → Runners」添加一台 loong64 机器（标签 loong64），
+# 或改为 QEMU 模拟（见下方注释）。loong64 job 仅在 ELECTRON_LOONG64_URL 存在时运行。
+# ============================================================================
+name: build-deb
+
+on:
+  workflow_dispatch:
+  push:
+    tags: ['v*']
+  release:
+    types: [published]
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: build-${{ matrix.arch }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: x64
+            runner: ubuntu-24.04
+          - arch: arm64
+            runner: ubuntu-24.04-arm
+          # loong64 需自托管 runner（标签 loong64），且需配置 ELECTRON_LOONG64_URL secret
+          - arch: loong64
+            runner: [self-hosted, loong64]
+    # 无 loong64 定制 Electron 来源时跳过该架构，不阻塞 x64/arm64
+    if: ${{ matrix.arch != 'loong64' || secrets.ELECTRON_LOONG64_URL != '' }}
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+
+      - name: 安装 Node.js（编译 better-sqlite3 需要 npm）
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: 安装系统依赖
+        run: |
+          sudo apt-get update -y
+          sudo apt-get install -y rsync p7zip-full dpkg-dev python3 curl
+
+      - name: 获取 Windows 安装包
+        run: |
+          test -n "${{ secrets.WIN_EXE_URL }}" || { echo "缺少仓库 Secret: WIN_EXE_URL"; exit 1; }
+          curl -fL "${{ secrets.WIN_EXE_URL }}" -o "WorkBuddy-win32-x64-user.exe"
+
+      - name: 构建 (${{ matrix.arch }})
+        env:
+          ELECTRON_LOONG64_URL: ${{ secrets.ELECTRON_LOONG64_URL }}
+        run: bash build.sh --arch ${{ matrix.arch }} --no-install
+
+      - name: 上传产物 (artifact)
+        uses: actions/upload-artifact@v4
+        with:
+          name: deb-${{ matrix.arch }}
+          path: com.xydw.workbuddy_*_${{ matrix.arch }}.deb
+          if-no-files-found: error
+
+      - name: 发布到 Release
+        if: ${{ github.event_name == 'release' }}
+        uses: softprops/action-gh-release@v2
+        with:
+          files: com.xydw.workbuddy_*_${{ matrix.arch }}.deb
+
+# ----------------------------------------------------------------------------
+# loong64 的 QEMU 替代方案（无自托管机器时）：
+#   将上方 loong64 的 runs-on 改为 ubuntu-24.04，并在「获取 Windows 安装包」前加：
+#     - uses: docker/setup-qemu-action@v3
+#     - uses: docker/setup-buildx-action@v3
+#   然后以 loong64 容器执行构建，例如容器镜像 loongnix/debian-loong64，
+#   但需自行保证镜像内含 rsync/7z/dpkg-dev/python3/curl/node，且能访问 ELECTRON_LOONG64_URL。
+# ----------------------------------------------------------------------------
