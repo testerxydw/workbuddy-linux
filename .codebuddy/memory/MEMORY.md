@@ -1,31 +1,22 @@
-# WorkBuddy Linux 移植长期记忆
+# WorkBuddy（buddywork）长期记忆
 
-## 运行时版本
-- WorkBuddy 5.4.x 需 Electron 39.x 运行时（锁定 39.2.7）。Electron 37 致 daemon better-sqlite3 ABI 不匹配，页面空白。
+## 项目性质
+- **包名**：`com.xydw.workbuddy`，`amd64`，`.deb` 格式。
+- **产品**：腾讯 **CodeBuddy** 的 AI 编程工作台（Electron 工作台，`codebuddy` / `cbc-prewarm`）。
+- **非官方重打包**：拆解官方 **Windows NSIS 安装包**（`WorkBuddy-win32-x64-user-*.exe`），保留跨平台 JS 层（`app.asar` / `app.asar.unpacked`），替换为 Linux Electron 运行时与原生二进制后重新打包，使其可在 Deepin / UOS / Debian 系运行。
 
-## 原生模块
-- better-sqlite3 须用对应 Electron ABI 的 Linux ELF .node（npm_config_target=39.2.7，版本 12.8.0）。
-- 复制 bindings、file-uri-to-path 到 app.asar.unpacked/node_modules/。
-- qimei-node Linux 下因 appKey 缺失跳过；turing-sdk 仅 macOS/Windows 安全降级；wechat-copydata-decoder Windows 专属 try/catch 降级。
+## 转制关键要点（易错点）
+1. **Electron 锁定 39.2.7**：与 Windows 包内置 Linux 原生模块 ABI 对齐；误用 37 会导致 `better-sqlite3` ABI 不匹配、daemon 崩溃、页面空白。
+2. **重编译 `better-sqlite3@12.8.0`**：`target=39.2.7`，覆盖 `app.asar.unpacked` 内 `.node`，并补齐 `bindings` / `file-uri-to-path`。
+3. **标题栏自绘**：`--title-bar-style=custom` + main.js `titleBarOverlay` 守卫，避免 Linux 标题栏白块/丢失。
+4. **沙箱回退**：无 root 或 `chrome-sandbox` 未 setuid 时，启动脚本自动追加 `--no-sandbox`。
+5. **补齐运行时依赖**：复制 `chrome_crashpad_handler` 避免启动 FATAL，`ulimit -n 65535` 提高文件描述符上限。
+6. **Windows/macOS 专属模块安全降级**：`qimei-node` / `turing-sdk` / `wechat-copydata-decoder` 等按代码逻辑降级，不影响主流程。
 
-## Electron 39 新增文件
-- 必须复制 chrome_crashpad_handler，否则启动 FATAL 找不到该文件。
+## 产出与发布
+- 产出 deb 版本：`5.4.7-10`、`5.5.1-3`（amd64）。
+- 发布目标：GitHub Release（仓库 `testerxydw/github-releaase-pkg-url`，tag `2026-09-02`）。
+- 安装：`sudo dpkg -i com.xydw.workbuddy_*.deb`，终端执行 `workbuddy`。
 
-## 标题栏
-- 启动参数 --title-bar-style=custom 自绘三键。
-
-## 构建入口
-- build.sh 支持 --arch（x64/arm64/loong64，默认 x64，贯穿 Electron 下载 / better-sqlite3 编译 / deb 的 Architecture 字段）；--slim 默认开启剔除 Win/mac 冗余（--no-slim 关闭）。快速重建：build.sh --skip-extract --no-install。产物 com.xydw.workbuddy_<ver>-<rev>_<amd64|arm64|loong64>.deb（根目录）。
-- 多架构路线：deb 须按架构分开打三份；arm64 待用户提供对应环境（Electron 官方 arm64 可用，better-sqlite3 交叉编译）；loong64 暂缓（官方无 Electron 构建，需龙芯/UOS/Deepin 定制来源）。
-
-## 环境网络限制（2026-09-01 实测）
-- 本机 github.com 主域(20.205.243.166:443)被墙超时；api.github.com(20.205.243.168)可达。
-- git push/clone 走 github.com 主域故失败，需经 HTTP/SOCKS 代理或 SSH 方可推送。
-- 本机无常见代理端口(7890/1080/8080/8888/3128)监听。
-- 曾尝试将 github.com 强制解析到 20.205.243.168（api 的 IP），TLS 握手被对端重置，无效。
-
-## 桌面/进程图标命名策略（2026-09-02 确定）
-- Deepin 系统监视器按**进程名**查 .desktop 缓存，文件名 basename 须等于进程名（大小写敏感，子串匹配不忽略大小写）。
-- 通用方案（VS Code/CodeBuddy 同款，已采用）：Electron 二进制改名 /opt/workbuddy/workbuddy（进程名 workbuddy），启动脚本 workbuddy.sh，/usr/bin/workbuddy 软链到 workbuddy.sh，主桌面文件 workbuddy.desktop（basename=workbuddy 精确匹配进程名），Icon 字段仍用 reverse-domain 规范名 com.xydw.workbuddy。零隐藏文件，所有 workbuddy 主/子进程统一显示图标。
-- 早期折中（隐藏 workbuddy-bin.desktop / chrome_crashpad_handler.desktop + NoDisplay）未发布，已弃用。
-- 安装后须刷新缓存：DEBIAN/postinst 与 prerm 调用 update-icon-caches / update-desktop-database（否则图标/匹配不生效）。
+## 记忆归属（重要）
+- 本项目记忆**独立入库**于此目录（`workbuddy-win-to-linux/.codebuddy/memory`），与 codebuddy（github-releaase-pkg-url）项目的记忆**分库管理，互不混用**。

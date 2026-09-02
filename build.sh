@@ -304,6 +304,18 @@ stage_slim() {
     find "$RES_DIR/app.asar.unpacked" -path '*win32*' -prune -exec rm -rf {} + 2>/dev/null || true
     find "$RES_DIR/app.asar.unpacked" -path '*msvc*' -prune -exec rm -rf {} + 2>/dev/null || true
 
+    # 精简 koffi 自带的多平台预编译 .node（仅保留当前架构 linux_${ELECTRON_ARCH}，其余平台在 Linux 用不到）
+    local KEEP="linux_${ELECTRON_ARCH}" bn
+    while IFS= read -r KO; do
+        [[ -d "$KO" ]] || continue
+        for sub in "$KO"/*/; do
+            bn="$(basename "$sub")"
+            [[ "$bn" == "$KEEP" ]] && continue
+            step "slim: 删除 koffi 跨架构预编译: $bn"
+            rm -rf "$sub"
+        done
+    done < <(find "$RES_DIR/app.asar.unpacked" -type d -path '*/koffi/build/koffi' 2>/dev/null)
+
     # 顶层 WorkBuddy.exe 的配套资源已不用，app.asar 内含 JS 层
     # locales 仅留 zh-CN/en-US
     find "$APP_DIR/locales" -name '*.pak' ! -name 'zh-CN.pak' ! -name 'en-US.pak' -delete 2>/dev/null || true
