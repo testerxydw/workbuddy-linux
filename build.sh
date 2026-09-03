@@ -316,6 +316,11 @@ stage_slim() {
         done
     done < <(find "$RES_DIR/app.asar.unpacked" -type d -path '*/koffi/build/koffi' 2>/dev/null)
 
+    # 清理 macOS 专属 bundle：*.xcframework（如 qimei 的 QimeiSDKMac.xcframework）与
+    # node 模块的 src/mac 源码目录。上方 *.framework / *.dSYM / *darwin* 已覆盖其余 macOS 残留
+    find "$RES_DIR/app.asar.unpacked" -name '*.xcframework' -prune -exec rm -rf {} + 2>/dev/null || true
+    find "$RES_DIR/app.asar.unpacked" -path '*/src/mac' -prune -exec rm -rf {} + 2>/dev/null || true
+
     # 顶层 WorkBuddy.exe 的配套资源已不用，app.asar 内含 JS 层
     # locales 仅留 zh-CN/en-US
     find "$APP_DIR/locales" -name '*.pak' ! -name 'zh-CN.pak' ! -name 'en-US.pak' -delete 2>/dev/null || true
