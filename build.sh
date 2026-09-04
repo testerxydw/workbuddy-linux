@@ -301,6 +301,12 @@ css_block = '''
         body:not([data-platform="mac"]):not([data-platform="windows"]) #workbuddy-titlebar-left-slot .wb-button {
             width: 24px; height: 24px; min-width: 24px; padding: 0;
         }
+        /* Linux: 屏蔽侧边栏「发现应用」入口。
+           它是应用切换器 industry-template-switcher 的通用态，会盖住 workspace 标题/版本号。
+           只隐藏关闭态（--general 且未 --open），应用态的应用芯片保留。 */
+        body:not([data-platform="mac"]):not([data-platform="windows"]) .industry-template-switcher__trigger--general:not(.industry-template-switcher__trigger--open) {
+            display: none !important;
+        }
 '''
 for p in glob.glob(os.path.join(root, 'renderer/assets/index-*.js')):
     with open(p, encoding='utf-8') as f:
