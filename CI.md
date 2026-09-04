@@ -21,8 +21,9 @@
 ## 二、触发方式
 
 1. **手动触发**：Actions 页面 → `build-deb` → **Run workflow**。
-2. **推送 tag**：`git tag vX.Y.Z && git push --tags`（tag 形如 `v5.5.1`）。
-3. **发布 Release**：在 GitHub 创建 Release 并 **Publish**，工作流会把每个架构的 deb 自动上传为该 Release 的资产。
+2. **推送 tag（自动发布 Release）**：`git tag vX.Y.Z && git push --tags`（tag 形如 `v5.5.1`）。
+   - 工作流在 `push: tags: ['v*']` 时触发，构建各架构 deb 后**自动创建并发布 GitHub Release**（基于该 tag，deb 作为 Release 资产上传）。
+   - 无需再手动创建 Release；旧版「先 push tag 再手动 Publish Release」的两步流程已合并为一步。
 
 ---
 
@@ -66,8 +67,8 @@
 
 1. 在 Secrets 中把 `WIN_EXE_URL` 指向目标 Windows 安装包直链（文件名含版本号）。
 2. 推送 tag：`git tag v5.5.1 && git push --tags`，或手动 Run workflow。
-3. 等待 x64 / arm64（loong64 视配置）三个架构完成，从 Artifacts 或 Release 资产取 deb。
-4. 需要 Release 资产时：创建 GitHub Release 并 Publish，工作流自动上传各架构 deb。
+3. 工作流自动构建 x64 / arm64（loong64 视配置）并**自动发布 GitHub Release**，deb 直接出现在 Release 的 Assets 中，任何人可下载。
+   - 若需重新触发（如改了 workflow），删除并重新推送该 tag 即可：`git tag -d vX.Y.Z && git push origin :refs/tags/vX.Y.Z && git tag vX.Y.Z && git push origin vX.Y.Z`。
 
 ---
 

@@ -27,8 +27,6 @@ on:
         default: false
   push:
     tags: ['v*']
-  release:
-    types: [published]
 
 permissions:
   contents: write
@@ -82,10 +80,11 @@ jobs:
           if-no-files-found: error
 
       - name: 发布到 Release
-        if: ${{ github.event_name == 'release' }}
+        if: ${{ startsWith(github.ref, 'refs/tags/') }}
         uses: softprops/action-gh-release@v2
         with:
           files: com.xydw.workbuddy_*_${{ matrix.debarch }}.deb
+          fail_on_unmatched_files: false
 
   build-loong64:
     name: build-loong64
@@ -126,10 +125,11 @@ jobs:
           if-no-files-found: error
 
       - name: 发布到 Release
-        if: ${{ github.event_name == 'release' }}
+        if: ${{ startsWith(github.ref, 'refs/tags/') }}
         uses: softprops/action-gh-release@v2
         with:
           files: com.xydw.workbuddy_*_loong64.deb
+          fail_on_unmatched_files: false
 
 # ----------------------------------------------------------------------------
 # loong64 的 QEMU 替代方案（无自托管机器时）：
