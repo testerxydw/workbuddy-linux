@@ -234,6 +234,139 @@ stage_assemble() {
 }
 
 # ============================================================================
+# 阶段 3.2/5：让 Linux 标题栏与 Windows 一致（关于菜单 + 标题栏左槽）
+#   仅改 renderer 三处 Windows 专属分支 + 补左槽 CSS，不碰其它布局逻辑。
+# ============================================================================
+stage_patch_app() {
+    log "阶段 3.2/5：修补 app.asar — Linux 标题栏对齐 Windows"
+    [[ -f "$RES_DIR/app.asar" ]] || die "未找到 ${RES_DIR}/app.asar"
+    local TMP="/tmp/wb_patch_asar"
+    rm -rf "$TMP"; mkdir -p "$TMP/app"
+    node "$SCRIPT_DIR/asar_tool.js" extract "$RES_DIR/app.asar" "$TMP/app" \
+        || die "解包 app.asar 失败"
+
+    # --- A. 主进程：非 darwin 保持原生菜单为空（与 Windows 行为一致） ---
+    local MB="$TMP/app/main/menu-builder.js"
+    if [[ -f "$MB" ]]; then
+        python3 - "$MB" <<'PY' || die "主进程打补丁失败"
+import sys, re
+p = sys.argv[1]
+s = open(p, encoding='utf-8').read()
+if 'process.platform !== "darwin"' in s:
+    print("already patched"); sys.exit(0)
+m = re.search(r'([ \t]*)electron\.Menu\.setApplicationMenu\(menu\);', s)
+if not m:
+    raise SystemExit("patch anchor not found in " + p)
+ind = m.group(1)
+new = (ind + 'if (process.platform !== "darwin") {\n'
+       + ind + '\telectron.Menu.setApplicationMenu(null);\n'
+       + ind + '\treturn;\n'
+       + ind + '}\n' + m.group(0))
+s = s[:m.start()] + new + s[m.end():]
+open(p, 'w', encoding='utf-8').write(s)
+print("patched menu-builder")
+PY
+    fi
+
+    # --- B. Renderer：Linux 复用 Windows 标题栏（关于菜单 + 左槽 + CSS） ---
+    python3 - "$TMP/app" <<'PY2' || die "renderer 打补丁失败"
+import sys, glob, os
+root = sys.argv[1]
+patched = []
+css_block = '''
+        /* Linux: 复用 Windows 标题栏左槽，折叠/搜索/筛选进入标题栏，与 Windows 一致 */
+        body:not([data-platform="mac"]):not([data-platform="windows"]) {
+            --wb-titlebar-slot-icons: 3;
+            --wb-titlebar-slot-width: calc(3 * 24px + 2 * 2px + 16px);
+        }
+        body:not([data-platform="mac"]):not([data-platform="windows"]) #workbuddy-menubar-container {
+            padding-left: var(--wb-titlebar-slot-width);
+        }
+        body:not([data-platform="mac"]):not([data-platform="windows"]) #workbuddy-titlebar-left-slot {
+            position: fixed; top: 0; left: 0; box-sizing: border-box;
+            width: var(--wb-titlebar-slot-width); height: 30px;
+            display: flex; align-items: center; gap: 2px; padding: 0 8px;
+            z-index: 10001; -webkit-app-region: no-drag;
+            color: var(--cb-vscode-titleBar-activeForeground, #cccccc);
+            background: transparent; pointer-events: auto;
+        }
+        body:not([data-platform="mac"]):not([data-platform="windows"]) #workbuddy-titlebar-left-slot::after {
+            content: ''; position: absolute; top: 50%; right: 0; transform: translateY(-50%);
+            width: 1px; height: 16px;
+            background: var(--wb-color-border-primary, rgba(255,255,255,0.16)); pointer-events: none;
+        }
+        body:not([data-platform="mac"]):not([data-platform="windows"]) #workbuddy-titlebar-left-slot .conversation-list-topbar-actions {
+            position: static; top: auto; right: auto; display: flex; align-items: center; gap: 2px;
+        }
+        body:not([data-platform="mac"]):not([data-platform="windows"]) #workbuddy-titlebar-left-slot .wb-button {
+            width: 24px; height: 24px; min-width: 24px; padding: 0;
+        }
+'''
+for p in glob.glob(os.path.join(root, 'renderer/assets/index-*.js')):
+    with open(p, encoding='utf-8') as f:
+        s = f.read()
+    orig = s
+    # 1) 第一菜单在 Linux 上也显示为「关于」
+    s = s.replace('firstMenuAsAbout: isWindows', 'firstMenuAsAbout: !isMac')
+    # 2) 标题栏左槽在 Linux 上也创建（折叠/搜索/筛选 经 portal 进入）
+    s = s.replace('if (!isWindows) return;', 'if (isMac) return;')
+    # 3) 注入 Linux 左槽 CSS（在 style 模板闭合前，幂等）
+    idx = s.find('document.head.appendChild(style);')
+    if idx != -1 and 'Linux: 复用 Windows 标题栏左槽' not in s:
+        ce = s.rfind('`;', 0, idx)
+        if ce != -1:
+            s = s[:ce] + css_block + s[ce:]
+    if s != orig:
+        with open(p, 'w', encoding='utf-8') as f:
+            f.write(s)
+        patched.append(p)
+print("patched renderer files: " + (', '.join(patched) if patched else 'none'))
+PY2
+
+    # --- C. Renderer(agent-ui)：放开标题栏左槽 portal 的 Windows 门禁 ---
+    #     isHostWindows$1() 不能全局翻转——命令安全/路径长度等还依赖真实 Windows 语义。
+    #     只放开标题栏布局相关的调用点，并把页面内重复按钮按 Windows 行为隐藏。
+    python3 - "$TMP/app" <<'PY3' || die "agent-ui 打补丁失败"
+import sys, glob, os
+root = sys.argv[1]
+patched = []
+REPLACEMENTS = [
+    # 槽解析：不再要求宿主是 Windows
+    ('if (!isHostWindows$1() || typeof document === "undefined") return;',
+     'if (typeof document === "undefined") return;'),
+    # 侧栏按钮是否塞进标题栏：只要已登录即可（与 Windows 同）
+    ('const canPortalTitlebarActions = isHostWindows$1() && Boolean(accountUid);',
+     'const canPortalTitlebarActions = Boolean(accountUid);'),
+    # 槽图标数写入：不再要求宿主是 Windows
+    ('if (!isHostWindows$1() || typeof document === "undefined" || !titlebarLeftSlot) return;',
+     'if (typeof document === "undefined" || !titlebarLeftSlot) return;'),
+    # 侧栏折叠时页面内的展开/新建任务按钮：Windows 隐藏（已在标题栏），Linux 同样隐藏
+    ('if (!sidebarCollapsed || isHostWindows$1()) return null;',
+     'if (!sidebarCollapsed || true) return null;'),
+    ('sidebarCollapsed && !isHostWindows$1() &&',
+     'sidebarCollapsed && false &&'),
+    ('sidebarCollapsed && !isHostWindows$1() ?',
+     'sidebarCollapsed && false ?'),
+]
+for p in glob.glob(os.path.join(root, 'renderer/assets/ui-docs-viewer-*.js')):
+    with open(p, encoding='utf-8') as f:
+        s = f.read()
+    orig = s
+    for old, new in REPLACEMENTS:
+        s = s.replace(old, new)
+    if s != orig:
+        with open(p, 'w', encoding='utf-8') as f:
+            f.write(s)
+        patched.append(p)
+print("patched agent-ui files: " + (', '.join(patched) if patched else 'none'))
+PY3
+
+    node "$SCRIPT_DIR/asar_tool.js" pack "$TMP/app" "$RES_DIR/app.asar" \
+        || die "重打包 app.asar 失败"
+    step "  app.asar 已修补（Linux 标题栏对齐 Windows）"
+}
+
+# ============================================================================
 # 阶段 3.5/5：编译/替换 Linux 原生模块
 # ============================================================================
 stage_native_modules() {
@@ -579,6 +712,7 @@ if [[ "${DO_EXTRACT}" -eq 1 ]]; then
 fi
 stage_fetch_electron
 stage_assemble
+stage_patch_app
 stage_native_modules
 if [[ "${DO_SLIM}" -eq 1 ]]; then
     stage_slim
