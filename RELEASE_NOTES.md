@@ -2,7 +2,8 @@
 
 > 非官方移植，仅供学习交流。WorkBuddy 及其相关资源版权归腾讯所有。
 
-上游 Windows 安装包：`WorkBuddy-win32-x64-user-5.5.2.37672479-2b0177c3.exe`
+上游 Windows 安装包：`WorkBuddy-win32-x64-user-5.5.3.37748631-104760a2.exe`
+下载：`https://download.codebuddy.cn/workbuddy/saas/win32-x64-user/WorkBuddy-win32-x64-user-5.5.3.37748631-104760a2.exe`
 运行时：**Electron 39.2.7** Linux 构建
 
 ## 安装 / Install
