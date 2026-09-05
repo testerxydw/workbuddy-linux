@@ -1,0 +1,47 @@
+# ============================================================================
+# WorkBuddy Linux 更新探测（云端定时）
+#
+# 替代「本地 IDE 每日 automation 跑 check-update.sh」，改为完全在 GitHub
+# 云端运行：每日定时（或手动）检出代码 → 运行 check-update.sh 探测上游更新
+# → 若发现新版则更新 RELEASE_NOTES.md、写 latest-windows-exe.txt、打 tag 并推送
+# → tag push 自动触发 build.yml 构建并发布 Release。
+#
+# ⚠️ 必须配置 Secret：PUSH_TOKEN
+#   GitHub 默认的 GITHUB_TOKEN 推送 tag 不会递归触发其他 workflow（防循环），
+#   会导致 build.yml 不构建。因此本 workflow 用 PAT（personal access token）
+#   作为 checkout/push 凭据，PAT 推送的 tag 会正常触发 build.yml。
+#   配置：GitHub 仓库 Settings → Secrets and variables → Actions → New repository secret
+#        Name:   PUSH_TOKEN
+#        Value:  一个带 repo（含 workflow）权限的 Personal Access Token
+#   （scope 勾 repo；若开了 Fine-grained，需 repository contents + workflows 写权限）
+# ============================================================================
+name: check-update
+
+on:
+  schedule:
+    # 每日 北京时间 09:00（UTC+8）→ UTC 01:00。GitHub 可能延迟数分钟。
+    - cron: '0 1 * * *'
+  workflow_dispatch: {}   # 允许在 Actions 页面手动触发，便于调试
+
+permissions:
+  contents: write
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: 检出代码（使用 PAT 以便后续 push 能触发 build.yml）
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.PUSH_TOKEN }}
+          persist-credentials: true   # 保留 PAT 凭据，供 check-update.sh 内 git push 使用
+          fetch-depth: 0              # 拉全量，确保 tag 幂等判断准确
+
+      - name: 配置 git 身份
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: 运行更新检测
+        run: bash check-update.sh
