@@ -61,12 +61,16 @@ jobs:
 
       - name: 获取 Windows 安装包
         run: |
-          # 优先使用仓库 Secret WIN_EXE_URL；未配置时回退到 check-update.sh 写入的 latest-windows-exe.txt
-          URL="${{ secrets.WIN_EXE_URL }}"
-          if [ -z "$URL" ] && [ -f latest-windows-exe.txt ]; then
+          # 优先使用 check-update.sh 写入的 latest-windows-exe.txt（脚本探测到的新下载地址），
+          # 未生成时回退到仓库 Secret WIN_EXE_URL（手动维护的旧地址）。
+          URL=""
+          if [ -f latest-windows-exe.txt ]; then
             URL="$(cat latest-windows-exe.txt | tr -d '[:space:]')"
           fi
-          test -n "$URL" || { echo "缺少 WIN_EXE_URL 且 latest-windows-exe.txt 为空"; exit 1; }
+          if [ -z "$URL" ]; then
+            URL="${{ secrets.WIN_EXE_URL }}"
+          fi
+          test -n "$URL" || { echo "缺少 latest-windows-exe.txt 且未配置 WIN_EXE_URL"; exit 1; }
           # 保留原始文件名（含版本号），build.sh 据此自动提取应用版本
           FNAME="$(basename "${URL%%\?*}")"
           echo "下载 Windows 安装包: $FNAME"
@@ -88,7 +92,10 @@ jobs:
         if: ${{ startsWith(github.ref, 'refs/tags/') }}
         uses: softprops/action-gh-release@v2
         with:
-          files: com.xydw.workbuddy_*_${{ matrix.debarch }}.deb
+          # deb 为主产物；latest-windows-exe.txt 记录本版本对应的 Windows 原版下载地址（脚本探测到的新地址）
+          files: |
+            com.xydw.workbuddy_*_${{ matrix.debarch }}.deb
+            latest-windows-exe.txt
           fail_on_unmatched_files: false
 
   build-loong64:
@@ -133,7 +140,10 @@ jobs:
         if: ${{ startsWith(github.ref, 'refs/tags/') }}
         uses: softprops/action-gh-release@v2
         with:
-          files: com.xydw.workbuddy_*_loong64.deb
+          # deb 为主产物；latest-windows-exe.txt 记录本版本对应的 Windows 原版下载地址（脚本探测到的新地址）
+          files: |
+            com.xydw.workbuddy_*_loong64.deb
+            latest-windows-exe.txt
           fail_on_unmatched_files: false
 
 # ----------------------------------------------------------------------------

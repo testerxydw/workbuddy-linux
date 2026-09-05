@@ -34,10 +34,19 @@ die()  { echo "[check-update][错误] $*" >&2; exit 1; }
 [[ -f "$NOTES" ]] || die "缺少 $NOTES"
 
 # ---------- 1. 读取仓库当前 Windows 版本 ----------
-CUR_EXE=$(grep -oE 'WorkBuddy-win32-x64-user-[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+-[0-9a-f]+\.exe' "$NOTES" | head -1 || true)
+CUR_EXE=""
+# 优先用 latest-windows-exe.txt（脚本每次更新时写入的新地址，作为权威单一信息源），
+# 避免从 RELEASE_NOTES 多段 changelog 里 grep 到旧版本。文件不存在时回退 RELEASE_NOTES。
+if [[ -f latest-windows-exe.txt ]]; then
+  CUR_EXE=$(grep -oE 'WorkBuddy-win32-x64-user-[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+-[0-9a-f]+\.exe' latest-windows-exe.txt | head -1 || true)
+fi
+if [[ -z "$CUR_EXE" ]]; then
+  CUR_EXE=$(grep -oE 'WorkBuddy-win32-x64-user-[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+-[0-9a-f]+\.exe' "$NOTES" | head -1 || true)
+fi
 CUR_FULL=$(echo "$CUR_EXE" | grep -oE '[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+' || true)
-[[ -n "$CUR_FULL" ]] || die "无法从 $NOTES 解析当前 Windows 版本（上游安装包行）"
-log "当前仓库 Windows 版本: $CUR_FULL"
+SRC_NOTE="$NOTES"; [[ -f latest-windows-exe.txt ]] && SRC_NOTE="latest-windows-exe.txt"
+[[ -n "$CUR_FULL" ]] || die "无法解析当前 Windows 版本（latest-windows-exe.txt / $NOTES）"
+log "当前仓库 Windows 版本: $CUR_FULL（来源: $SRC_NOTE）"
 
 # ---------- 2. 探测更新接口 ----------
 FEED_URL="${API}?platform=${PLATFORM}&version=${CUR_FULL}"
