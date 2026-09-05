@@ -1,4 +1,4 @@
-# WorkBuddy 5.5.2-7 (Linux deb)
+# WorkBuddy 5.5.3-1 (Linux deb)
 
 > 非官方移植，仅供学习交流。WorkBuddy 及其相关资源版权归腾讯所有。
 
